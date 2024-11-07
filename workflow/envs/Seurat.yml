@@ -1,0 +1,8 @@
+name: Seurat
+channels:
+    - conda-forge
+    - bioconda
+dependencies:
+    - r-seurat
+    - r-remotes
+    - r-data.table

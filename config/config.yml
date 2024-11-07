@@ -1,0 +1,20 @@
+# This config file defines some variables for the pipeline
+#
+# directory where the single cell data is located (rds format, seurat object in R)
+input_directory: "resources/test_files" 
+
+# column in the meta.data indicating different samples within the experiment
+stratification: "Sample" 
+
+# column in the meta.data indicating different cell type calls
+celltype : "CellType" 
+
+# parameter to define the filter for outlier cells as distance to the median in median absolute deviations - smaller means more stringent filtering, something between 3-5 is recommended
+nmad: 3 
+
+# threshold to determine the number of bootstraps to be taken from a cell population. This is the maximum amount of deviance from the variance in the cell populations gene expression which is allowed from the minimal variation, if we would consider all of the cell population. It is meant to find an optimum between getting reasonably stable bootstrapped cell populations while drawing as few cells as possible from the population
+bootstrap_alpha: 0.05
+
+# minimum number of cells in a population (that means per stratification/sample and celltype) which are required to start the sampling
+min_cell_pop: 30
+

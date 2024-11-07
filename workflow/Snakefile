@@ -1,0 +1,93 @@
+# Porthmeus
+# 02.10.24
+
+# This is a pipeline to create context specific models from single cell rna seq data
+
+import os
+from os.path import join
+
+configfile: "config/config.yml"
+input_directory     =  config["input_directory"]
+stratification      =  config["stratification"]
+celltype            =  config["celltype"]
+nmad                =  config["nmad"]
+bootstrap_alpha     =  config["bootstrap_alpha"]
+min_cell_pop        =  config["min_cell_pop"]
+
+# get the input files and their names
+dataset_files = [f for f in os.listdir(input_directory)]
+dataset_names = [os.path.splitext(os.path.split(f)[1])[0] for f in dataset_files]
+
+# define some shortcut
+out = "results/"
+
+
+
+rule all:
+    input:
+        expand(join(out,"QC", "{dataset}_qced.rds"), dataset = dataset_names),
+        expand(join(out, "estimate_bootstrapSize", "{dataset}_bootstrapSize.csv") , dataset = dataset_names),
+        expand(join(out, "bootstrap_pseudoBulk", "{dataset}_pseudoBulk.mtx"), dataset = dataset_names)
+
+rule sc_qc:
+    input:
+        join(input_directory, "{dataset}.rds")
+    output:
+        dataset = join(out,"QC", "{dataset}_qced.rds"),
+        thresholds = join(out, "QC", "{dataset}_qcThresholds.csv")
+    params:
+        stratification = stratification,
+        celltype = celltype,
+        nmad = nmad
+    threads: 1
+    resources: 
+        mem_mb = "32000",
+        time = "00:30:00",
+    conda: join("envs","Seurat.yml")
+    log:
+        out = join("logs","sc_qc","{dataset}.log"),
+        err = join("logs","sc_qc","{dataset}.err")
+    script:
+        join("scripts", "sc_qc.R")
+
+rule estimate_bootstrapSize:
+    input:
+        sce = join(out,"QC", "{dataset}_qced.rds")
+    output:
+        bootstraps = join(out, "estimate_bootstrapSize", "{dataset}_bootstrapSize.csv"),
+        stats = join(out, "estimate_bootstrapSize", "{dataset}_VarianceEstimation.csv.gz")
+    params:
+        stratification = stratification,
+        celltype = celltype,
+        alpha = bootstrap_alpha,
+        min_cell_pop = min_cell_pop
+    threads: 32
+    resources:
+        mem_mb = "32000",
+        time = "06:00:00",
+    conda: join("envs","Seurat.yml")
+    log:
+        out = join("logs","estimate_bootstrapSize","{dataset}.log"),
+        err = join("logs","estimate_bootstrapSize","{dataset}.err")
+    script:
+        join("scripts", "estimate_bootstrapSize.R")
+
+rule bootstrap_pseudoBulk:
+    input:
+        bootstraps = join(out, "estimate_bootstrapSize", "{dataset}_bootstrapSize.csv"),
+        sce = join(out,"QC", "{dataset}_qced.rds")
+    output:
+        matrix = join(out, "bootstrap_pseudoBulk", "{dataset}_pseudoBulk.mtx"),
+        meta = join(out, "bootstrap_pseudoBulk", "{dataset}_meta.csv")
+    threads: 32
+    resources:
+        mem_mb = "32000",
+        time = "06:00:00",
+    conda: join("envs","Seurat.yml")
+    log:
+        out = join("logs","bootstrap_pseudoBulk","{dataset}.log"),
+        err = join("logs","bootstrap_pseudoBulk","{dataset}.err")
+    script:
+        join("scripts", "bootstrap_pseudoBulk.R")
+
+        
