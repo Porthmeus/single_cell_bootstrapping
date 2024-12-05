@@ -13,10 +13,20 @@ require(Seurat)
 require(data.table)
 require(parallel)
 
-# functions for bootstrapping
+sum_log <- function(x){
+    # function to sum a matrix x by rows, if this matrix is log2 normalized
+    log2(rowSums(2^x))
+}
 
-bootstrap_pseudoBulk<-function(sce, strat, strat_val, celltype, celltype_val,boots, k = 5, FUN = sum){
-    # sce - seurat object of the single cell
+mean_log <- function(x){
+    # function to take the mean of a matrix x by rows, if this matrix is log2 normalized
+    log2(rowMeans(2^x))
+}
+
+
+# functions for bootstrapping
+bootstrap_pseudoBulk<-function(sce, strat, strat_val, celltype, celltype_val,boots, k = 5, FUN = sum_log, matrix_slot= "data"){
+    # sce - seurat object of the single cell, will assess
     # strat - column in the metat data for the stratification of the dataset, usually the samples within the set
     # strat_val - which sample should be used in the stratification column
     # celltype - the clustering of the data, usually the cell calling
@@ -24,17 +34,24 @@ bootstrap_pseudoBulk<-function(sce, strat, strat_val, celltype, celltype_val,boo
     # boots - number of bootstraps
     # k - number of final pseudobulks created by bootstrapping
     # FUN - function for aggregation of values from individual cells of the bootstrapping
+    # matrix_slot - which slot of the sce object should be accessed - default: "data" (corresponds to log normalized reads)
     # value - returns a sparse matrix with k columns and genes as rows
+
 
     all_cells <- data.table(sce@meta.data, keep.rownames=TRUE)[get(strat) == strat_val & get(celltype) == celltype_val,rn]
     boot_cells <- lapply(1:k, sample,x = all_cells, size = boots)
-
+    
+    mat <- slot(sce@assays$RNA, matrix_slot)
     if(deparse(FUN) == deparse(sum)){
-        boot_mat <-  Matrix(sapply(boot_cells, function(x) rowSums(sce@assays$RNA@counts[,x])), sparse = TRUE)
+        boot_mat <-  Matrix(sapply(boot_cells, function(x) rowSums(mat[,x])), sparse = TRUE)
     } else if(deparse(FUN) == depars(mean)){
-        boot_mat <-  Matrix(sapply(boot_cells, function(x) rowMeans(sce@assays$RNA@counts[,x])), sparse =  TRUE)
+        boot_mat <-  Matrix(sapply(boot_cells, function(x) rowMeans(mat[,x])), sparse =  TRUE)
+    } else if(deparse(FUN) == depars(sum_log)){
+        boot_mat <-  Matrix(sapply(boot_cells, function(x) sum_log(mat[,x])), sparse =  TRUE)
+    } else if(deparse(FUN) == depars(mean_log)){
+        boot_mat <-  Matrix(sapply(boot_cells, function(x) mean_log(mat[,x])), sparse =  TRUE)
     } else {
-        boot_mat <- Matrix(sapply(boot_cells, function(x) apply(sce@assays$RNA@counts[,x],1, FUN)), sparse = TRUE)
+        boot_mat <- Matrix(sapply(boot_cells, function(x) apply(mat[,x],1, FUN)), sparse = TRUE)
     }
     colnames(boot_mat) <- paste(strat_val, celltype_val, 1:k, sep = "_")
     return(boot_mat)
